@@ -1,44 +1,24 @@
-# repo-baseline
+# usecase-coach
 
-A minimal GitHub template repository providing baseline structure and conventions for new projects.
+A Socratic discovery coach for finding AI use cases from one's own strengths and pain-points.
 
 ## What This Is
 
-This is a **template repository** that provides:
-- Contribution guidelines ([CONTRIBUTING.md](CONTRIBUTING.md)) and AI collaboration guidance ([AGENTS.md](AGENTS.md))
-- Issue and pull request templates for structured communication
-- Manual Azure OIDC validation workflow
-- E2E test and azd environment management workflows
-- A starting point that avoids premature technical decisions
+usecase-coach challenges copy-others thinking and judges ideas by the impact they would produce, rather than serving up generic examples to imitate. Reference use cases in this repo are inspiration for analogy, not templates to copy.
 
-This template is intentionally minimal and public-safe, containing no secrets, licenses, or environment-specific configuration.
+**Status: very early — concept stage.** No working coach yet.
 
-## How to Use as a Template
+## Repository Contents
 
-1. Click the **"Use this template"** button on GitHub
-2. Create a new repository from this template (public or private)
-3. Follow the post-creation checklist below
-
-## Post-Creation Checklist
-
-After creating a repository from this template:
-
-- [ ] **Choose and add a LICENSE file** - This template intentionally omits a license; add one appropriate for your project
-- [ ] **Configure Azure OIDC** (if using Azure) - Set up federated credentials and add the following repository secrets:
-  - `AZURE_CLIENT_ID` (repository variable)
-  - `AZURE_TENANT_ID` (repository secret)
-  - `AZURE_SUBSCRIPTION_ID` (repository secret)
-  
-  See [docs/azure-oidc-setup.md](docs/azure-oidc-setup.md) for detailed setup instructions. Then run the "Azure OIDC Connectivity Check" workflow manually to verify the configuration.
-- [ ] **Enable AI agent Azure access** (if using Azure with Copilot coding agent) - Run `azd coding-agent config` to give AI agents read-time visibility into Azure state while authoring changes. See [docs/azure-coding-agent-guide.md](docs/azure-coding-agent-guide.md) for guidance.
-- [ ] **Update README.md** - Replace this generic template README with repository-specific documentation
-- [ ] **Review AGENTS.md** - Update or remove this file to reflect your repository's specific purpose and conventions
+- [`data/reference-usecases/`](data/reference-usecases/) — curated example AI use cases the coach draws on for analogy. Each `*.json` record validates against [`data/reference-usecases/schema.json`](data/reference-usecases/schema.json). See the directory [README](data/reference-usecases/README.md) for the field definitions.
+- [`docs/`](docs/) — operational guides (Azure OIDC setup, Copilot coding agent guidance).
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`AGENTS.md`](AGENTS.md) — collaboration guidelines for human and AI contributors.
 
 ## Included Workflows
 
 ### Azure OIDC Connectivity Check
 
-A manual workflow that validates your Azure OIDC configuration is working correctly. Run it after completing the OIDC setup above.
+A manual workflow that validates your Azure OIDC configuration is working correctly. Run it after completing the setup described in [docs/azure-oidc-setup.md](docs/azure-oidc-setup.md).
 
 - **Trigger**: Manual (`workflow_dispatch`)
 - **File**: `.github/workflows/azure-oidc-check.yml`

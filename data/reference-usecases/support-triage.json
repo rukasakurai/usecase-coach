@@ -1,0 +1,5 @@
+{
+  "problem": "A fictional consumer-software company's support tickets sat in a shared queue waiting for a human to read and route them, creating a bottleneck before any real work began.",
+  "approach": "Trained a classifier on historical tickets paired with the team that ultimately resolved each one. Deployed it at intake; high-confidence predictions were routed automatically and lower-confidence ones went to a small human review queue.",
+  "impact": "Median time-to-first-response dropped from hours to under an hour, and specialists reported fewer mis-routed tickets reaching their queues."
+}
