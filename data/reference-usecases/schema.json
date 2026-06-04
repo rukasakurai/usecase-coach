@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rukasakurai/usecase-coach/data/reference-usecases/v1",
+  "type": "object",
+  "required": ["problem", "approach", "impact"],
+  "properties": {
+    "problem":  { "type": "string" },
+    "approach": { "type": "string" },
+    "impact":   { "type": "string" }
+  }
+}
