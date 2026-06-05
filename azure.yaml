@@ -3,6 +3,7 @@
 name: usecase-coach
 services:
   mcp:
+    project: .
     host: containerapp
     language: docker
     docker:
