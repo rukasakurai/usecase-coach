@@ -54,6 +54,14 @@ When `ENTRA_CLIENT_ID` is set, the deployment adds an auth config that returns `
 
 ## Included Workflows
 
+### Build Check
+
+A fast pull-request check that compiles the MCP server and validates the Bicep — no Azure credentials required. Use it for quick feedback before the slower E2E deployment.
+
+- **Trigger**: Pull requests that modify `app/` or `infra/`, or manual (`workflow_dispatch`)
+- **File**: `.github/workflows/build-check.yml`
+- **Steps**: `dotnet build` of `app/` and `az bicep build` of `infra/main.bicep`
+
 ### Azure OIDC Connectivity Check
 
 A manual workflow that validates your Azure OIDC configuration is working correctly. Run it after completing the setup described in [docs/azure-oidc-setup.md](docs/azure-oidc-setup.md).
@@ -72,7 +80,7 @@ Automates provisioning of infrastructure, application deployment, test execution
   - `environment` — azd environment name (default: auto-generated from run ID)
   - `location` — Azure region (default: `japaneast`)
 
-**Customize for your project**: Edit the "Run tests" step in the workflow to add your E2E test commands (e.g., `pytest tests/e2e/`, `npm test`, or a custom test script).
+**Smoke test**: After deployment, the "Smoke test deployed MCP server" step calls the live endpoint (MCP `initialize` → `tools/list` → `tools/call`) and fails if `get_reference_usecases` is missing or returns no use cases. Extend that step with project-specific checks as needed.
 
 #### Required Configuration
 

@@ -93,10 +93,44 @@ jobs:
             sleep "$WAIT"
           done
 
-      - name: Run tests
+      - name: Smoke test deployed MCP server
         run: |
-          echo "Add your E2E test commands here."
-          echo "For example: pytest tests/e2e/ or npm test"
+          set -uo pipefail
+          URL=$(azd env get-value SERVICE_MCP_URI)
+          echo "MCP server: $URL"
+          MCP="$URL/mcp"
+          ct='Content-Type: application/json'
+          acc='Accept: application/json, text/event-stream'
+
+          # Container Apps scales from zero; wait for the first replica to wake.
+          ok=
+          for i in $(seq 1 30); do
+            if curl -fsS -m 10 "$URL/" >/dev/null 2>&1; then ok=1; echo "Health OK (attempt $i)"; break; fi
+            echo "Waiting for app... ($i)"; sleep 5
+          done
+          if [ -z "$ok" ]; then echo "::error::App did not become healthy"; exit 1; fi
+
+          # initialize -> capture session id
+          hdrs=$(mktemp)
+          curl -fsS -D "$hdrs" -o /tmp/init.txt -m 30 -X POST "$MCP" -H "$ct" -H "$acc" \
+            -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"e2e","version":"1"}}}'
+          sid=$(grep -i '^mcp-session-id:' "$hdrs" | awk '{print $2}' | tr -d '\r' || true)
+          if [ -z "$sid" ]; then echo "::error::no MCP session id"; cat /tmp/init.txt; exit 1; fi
+
+          curl -fsS -m 30 -X POST "$MCP" -H "$ct" -H "$acc" -H "Mcp-Session-Id: $sid" \
+            -d '{"jsonrpc":"2.0","method":"notifications/initialized"}' -o /dev/null
+
+          # tools/list -> tool is registered
+          curl -fsS -m 30 -X POST "$MCP" -H "$ct" -H "$acc" -H "Mcp-Session-Id: $sid" \
+            -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' -o /tmp/list.txt
+          if ! grep -q 'get_reference_usecases' /tmp/list.txt; then echo "::error::tool not listed"; cat /tmp/list.txt; exit 1; fi
+
+          # tools/call -> returns at least one use case, no error
+          curl -fsS -m 30 -X POST "$MCP" -H "$ct" -H "$acc" -H "Mcp-Session-Id: $sid" \
+            -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"get_reference_usecases","arguments":{}}}' -o /tmp/call.txt
+          if grep -q '"isError":true' /tmp/call.txt; then echo "::error::tool call returned isError"; cat /tmp/call.txt; exit 1; fi
+          if ! grep -q 'approach' /tmp/call.txt; then echo "::error::tool returned no use cases"; cat /tmp/call.txt; exit 1; fi
+          echo "MCP smoke test passed: tool listed and returned use cases."
 
       - name: Cleanup (azd down)
         if: always() && (inputs.cleanup != false || github.event_name == 'pull_request')
