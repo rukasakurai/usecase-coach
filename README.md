@@ -27,8 +27,8 @@ A minimal [Model Context Protocol](https://modelcontextprotocol.io/) server (in 
 ### Run locally
 
 ```bash
-dotnet run --project app
-# then connect an MCP client to http://localhost:<port>/mcp
+ASPNETCORE_HTTP_PORTS=5099 dotnet run --project app
+# server is then available at http://localhost:5099/mcp
 ```
 
 ### Deploy to Azure
@@ -40,6 +40,34 @@ azd up
 ```
 
 `azd` builds the image from [`app/Dockerfile`](app/Dockerfile) (build context is the repo root so the use-case data is bundled) and provisions the resources in [`infra/`](infra/). After deployment, connect your MCP client to `https://<app-fqdn>/mcp` (the FQDN is shown in the `azd` output and as the `SERVICE_MCP_URI` output).
+
+### Test with a prompt
+
+To exercise the server the way an AI agent would, register it with an MCP client and ask a natural-language question — the model decides to call `get_reference_usecases`. The steps are identical for a local or Azure deployment; only the URL differs:
+
+- **Local**: `http://localhost:5099/mcp`
+- **Azure**: `https://<app-fqdn>/mcp` (the `SERVICE_MCP_URI` from the `azd` output)
+
+Using [GitHub Copilot CLI](https://docs.github.com/copilot/how-tos/use-copilot-agents/use-copilot-cli) as the client, run `/mcp add` and set Name `usecase-coach`, Type `http`, and the URL above (press <kbd>Ctrl</kbd>+<kbd>S</kbd> to save). Equivalently, add it to `~/.copilot/mcp-config.json`:
+
+```json
+{
+  "mcpServers": {
+    "usecase-coach": {
+      "type": "http",
+      "url": "http://localhost:5099/mcp"
+    }
+  }
+}
+```
+
+Then enter a prompt, for example:
+
+> Using the usecase-coach server, show me a reference AI use case and explain the pattern.
+
+**Other clients** accept the same URL — e.g. VS Code agent mode or Claude Desktop. For a quick check without an LLM, use the [MCP Inspector](https://github.com/modelcontextprotocol/inspector): `npx @modelcontextprotocol/inspector`, connect to the URL, and call `get_reference_usecases` directly.
+
+> If the Azure deployment has authentication enabled (see below), the client must present a valid Microsoft Entra token. The default deployment is unauthenticated.
 
 ### Authentication (optional)
 
