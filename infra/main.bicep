@@ -19,6 +19,7 @@ param entraOpenIdIssuer string = ''
 var resourceToken = uniqueString(resourceGroup().id, environmentName)
 var tags = { 'azd-env-name': environmentName }
 var placeholderImage = 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
+var acrPullRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
 
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   name: 'log-${resourceToken}'
@@ -51,7 +52,23 @@ resource registry 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' = 
   tags: tags
   sku: { name: 'Basic' }
   properties: {
-    adminUserEnabled: true
+    adminUserEnabled: false
+  }
+}
+
+resource identity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: 'id-${resourceToken}'
+  location: location
+  tags: tags
+}
+
+resource acrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(registry.id, identity.id, acrPullRoleId)
+  scope: registry
+  properties: {
+    roleDefinitionId: acrPullRoleId
+    principalId: identity.properties.principalId
+    principalType: 'ServicePrincipal'
   }
 }
 
@@ -59,6 +76,10 @@ resource mcp 'Microsoft.App/containerApps@2024-03-01' = {
   name: 'ca-mcp-${resourceToken}'
   location: location
   tags: union(tags, { 'azd-service-name': 'mcp' })
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: { '${identity.id}': {} }
+  }
   properties: {
     managedEnvironmentId: containerEnv.id
     configuration: {
@@ -67,17 +88,10 @@ resource mcp 'Microsoft.App/containerApps@2024-03-01' = {
         targetPort: 8080
         transport: 'auto'
       }
-      secrets: [
-        {
-          name: 'acr-password'
-          value: registry.listCredentials().passwords[0].value
-        }
-      ]
       registries: [
         {
           server: registry.properties.loginServer
-          username: registry.listCredentials().username
-          passwordSecretRef: 'acr-password'
+          identity: identity.id
         }
       ]
     }
@@ -98,6 +112,7 @@ resource mcp 'Microsoft.App/containerApps@2024-03-01' = {
       }
     }
   }
+  dependsOn: [acrPull]
 }
 
 // Container Apps built-in Entra ID auth. Only created when a client ID is supplied,
