@@ -108,7 +108,7 @@ Automates provisioning of infrastructure, application deployment, test execution
   - `environment` — azd environment name (default: auto-generated from run ID)
   - `location` — Azure region (default: `japaneast`)
 
-**Smoke test**: After deployment, the "Smoke test deployed MCP server" step calls the live endpoint (MCP `initialize` → `tools/list` → `tools/call`) and fails if `get_reference_usecases` is missing or returns no use cases. Extend that step with project-specific checks as needed.
+**Smoke test**: After deployment, the "Smoke test deployed MCP server" step calls the live endpoint (MCP `initialize` → `tools/list` → `tools/call`) and runs [`scripts/verify_mcp_response.py`](scripts/verify_mcp_response.py), which parses the response and asserts the returned records are well-formed and exactly match the repo's `data/reference-usecases/` source data.
 
 #### Required Configuration
 

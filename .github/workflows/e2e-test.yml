@@ -125,12 +125,10 @@ jobs:
             -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' -o /tmp/list.txt
           if ! grep -q 'get_reference_usecases' /tmp/list.txt; then echo "::error::tool not listed"; cat /tmp/list.txt; exit 1; fi
 
-          # tools/call -> returns at least one use case, no error
+          # tools/call -> validate the response matches the repo's reference data
           curl -fsS -m 30 -X POST "$MCP" -H "$ct" -H "$acc" -H "Mcp-Session-Id: $sid" \
             -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"get_reference_usecases","arguments":{}}}' -o /tmp/call.txt
-          if grep -q '"isError":true' /tmp/call.txt; then echo "::error::tool call returned isError"; cat /tmp/call.txt; exit 1; fi
-          if ! grep -q 'approach' /tmp/call.txt; then echo "::error::tool returned no use cases"; cat /tmp/call.txt; exit 1; fi
-          echo "MCP smoke test passed: tool listed and returned use cases."
+          python3 scripts/verify_mcp_response.py --response /tmp/call.txt --data-dir data/reference-usecases
 
       - name: Cleanup (azd down)
         if: always() && (inputs.cleanup != false || github.event_name == 'pull_request')
