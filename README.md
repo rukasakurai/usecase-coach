@@ -101,12 +101,14 @@ A manual workflow that validates your Azure OIDC configuration is working correc
 
 Automates provisioning of infrastructure, application deployment, test execution, and cleanup using the Azure Developer CLI (`azd`). Creates a resource group (with optional tagging from repository secrets) before running `azd provision` and `azd deploy`.
 
-- **Trigger**: Manual (`workflow_dispatch`) or on pull requests to `main` that modify `app/`, `infra/`, or `azure.yaml`
+- **Trigger**: Manual (`workflow_dispatch`) only
 - **File**: `.github/workflows/e2e-test.yml`
 - **Inputs** (manual trigger):
   - `cleanup` — Run `azd down` after tests (default: `true`)
   - `environment` — azd environment name (default: auto-generated from run ID)
   - `location` — Azure region (default: `japaneast`)
+
+> **Note**: This workflow is manual-only. The container app pulls its image using a managed identity whose `AcrPull` role assignment is created during `azd provision`, which requires the deployment principal to hold `Microsoft.Authorization/roleAssignments/write` (e.g. **Role Based Access Control Administrator**), not just **Contributor**. Pull requests are validated by the credential-free [Build Check](#build-check) workflow instead.
 
 **Smoke test**: After deployment, the "Smoke test deployed MCP server" step calls the live endpoint (MCP `initialize` → `tools/list` → `tools/call`) and runs [`scripts/verify_mcp_response.py`](scripts/verify_mcp_response.py), which parses the response and asserts the returned records are well-formed and exactly match the repo's `data/reference-usecases/` source data.
 

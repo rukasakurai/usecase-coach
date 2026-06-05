@@ -1,5 +1,11 @@
 name: E2E Test
 
+# Manual-only for now. The container app pulls its image via a managed identity
+# whose AcrPull role assignment is created during `azd provision`, which requires
+# the deployment principal to have Microsoft.Authorization/roleAssignments/write
+# (Role Based Access Control Administrator / User Access Administrator). Until the
+# CI principal is granted that, run this workflow manually after deploying. PRs are
+# still validated by the credential-free Build Check workflow.
 on:
   workflow_dispatch:
     inputs:
@@ -17,12 +23,6 @@ on:
         required: false
         type: string
         default: "japaneast"
-  push:
-    branches: [main]
-    paths:
-      - "app/**"
-      - "infra/**"
-      - "azure.yaml"
 
 permissions:
   id-token: write
