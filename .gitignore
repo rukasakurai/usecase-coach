@@ -1,3 +1,7 @@
 # Local scratch files created during doc testing / CLI usage
 federated-credential.json
 
+# .NET build artifacts
+bin/
+obj/
+

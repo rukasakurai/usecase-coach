@@ -11,8 +11,46 @@ usecase-coach challenges copy-others thinking and judges ideas by the impact the
 ## Repository Contents
 
 - [`data/reference-usecases/`](data/reference-usecases/) — curated example AI use cases the coach draws on for analogy. Each `*.json` record validates against [`data/reference-usecases/schema.json`](data/reference-usecases/schema.json). See the directory [README](data/reference-usecases/README.md) for the field definitions.
+- [`app/`](app/) — a .NET 10 MCP server that exposes the reference use cases as a tool (see [MCP Server](#mcp-server)).
+- [`infra/`](infra/) — Bicep for deploying the MCP server to Azure Container Apps via `azd`.
 - [`docs/`](docs/) — operational guides (Azure OIDC setup, Copilot coding agent guidance).
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`AGENTS.md`](AGENTS.md) — collaboration guidelines for human and AI contributors.
+
+## MCP Server
+
+A minimal [Model Context Protocol](https://modelcontextprotocol.io/) server (in [`app/`](app/)) lets external AI clients query the reference use cases as a tool.
+
+- **Runtime**: .NET 10 ASP.NET Core using [`ModelContextProtocol.AspNetCore`](https://www.nuget.org/packages/ModelContextProtocol.AspNetCore) (Streamable HTTP transport).
+- **Endpoint**: `/mcp` (a plain `GET /` returns a human-readable status string).
+- **Tool**: `get_reference_usecases` — returns every record in `data/reference-usecases/` (excluding `schema.json`). The data directory is resolved from the `REFERENCE_USECASES_DIR` environment variable, falling back to a `data/reference-usecases` folder discovered upward from the working directory.
+
+### Run locally
+
+```bash
+dotnet run --project app
+# then connect an MCP client to http://localhost:<port>/mcp
+```
+
+### Deploy to Azure
+
+The server deploys to Azure Container Apps with the Azure Developer CLI (`azd`), reusing the OIDC setup in [docs/azure-oidc-setup.md](docs/azure-oidc-setup.md):
+
+```bash
+azd up
+```
+
+`azd` builds the image from [`app/Dockerfile`](app/Dockerfile) (build context is the repo root so the use-case data is bundled) and provisions the resources in [`infra/`](infra/). After deployment, connect your MCP client to `https://<app-fqdn>/mcp` (the FQDN is shown in the `azd` output and as the `SERVICE_MCP_URI` output).
+
+### Authentication (optional)
+
+By default the endpoint is deployed without authentication. To enable Container Apps' built-in Microsoft Entra ID auth, register an Entra application and provide its values before deploying — no IDs are hardcoded:
+
+```bash
+azd env set ENTRA_CLIENT_ID <application-client-id>
+azd env set ENTRA_OPENID_ISSUER https://login.microsoftonline.com/<tenant-id>/v2.0
+```
+
+When `ENTRA_CLIENT_ID` is set, the deployment adds an auth config that returns `401` to unauthenticated callers (suited to non-interactive MCP clients).
 
 ## Included Workflows
 
