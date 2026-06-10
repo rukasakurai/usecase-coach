@@ -11,11 +11,8 @@
     "mcpImageName": {
       "value": "${SERVICE_MCP_IMAGE_NAME}"
     },
-    "entraClientId": {
-      "value": "${ENTRA_CLIENT_ID}"
-    },
-    "entraOpenIdIssuer": {
-      "value": "${ENTRA_OPENID_ISSUER}"
+    "disableAuth": {
+      "value": "${AUTH_DISABLED=false}"
     }
   }
 }

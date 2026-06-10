@@ -60,6 +60,9 @@ jobs:
           azd env set AZURE_LOCATION "$AZD_LOCATION"
           azd env set AZURE_SUBSCRIPTION_ID "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
           azd env set AZURE_RESOURCE_GROUP "rg-$AZD_ENVIRONMENT"
+          # CI's deploy identity cannot create Entra app registrations, so opt out of
+          # the default Entra auth and deploy the endpoint unauthenticated.
+          azd env set AUTH_DISABLED true
 
       - name: Create resource group
         run: |

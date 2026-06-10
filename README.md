@@ -67,18 +67,24 @@ Then enter a prompt, for example:
 
 **Other clients** accept the same URL — e.g. VS Code agent mode or Claude Desktop. For a quick check without an LLM, use the [MCP Inspector](https://github.com/modelcontextprotocol/inspector): `npx @modelcontextprotocol/inspector`, connect to the URL, and call `get_reference_usecases` directly.
 
-> If the Azure deployment has authentication enabled (see below), the client must present a valid Microsoft Entra token. The default deployment is unauthenticated.
+> The default Azure deployment requires authentication: the client must present a valid Microsoft Entra token (see [Authentication](#authentication)). A deployment is only public if it explicitly opts out of auth.
 
-### Authentication (optional)
+### Authentication
 
-By default the endpoint is deployed without authentication. To enable Container Apps' built-in Microsoft Entra ID auth, register an Entra application and provide its values before deploying — no IDs are hardcoded:
+The Azure deployment is **protected by Microsoft Entra ID by default**. `azd up` provisions the endpoint's own Entra app registration and service principal and wires Container Apps' built-in auth to it, so unauthenticated callers receive `401` (suited to non-interactive MCP clients). No app registration is created by hand and no client/tenant IDs are copied into configuration.
+
+To connect, a client requests a token for the endpoint's app (the audience) and sends it as a bearer token to `/mcp`. The deployment exposes the app's client ID as the `MCP_ENTRA_CLIENT_ID` output (`azd env get-value MCP_ENTRA_CLIENT_ID`).
+
+Because the default deployment creates directory objects (an app registration and service principal), the identity running `azd up` needs permission to do so — for example the **Application Administrator** (or Cloud Application Administrator) Microsoft Entra role, or a tenant where the *Users can register applications* setting is enabled.
+
+#### Deploy without authentication (opt-in)
+
+Where the deploying identity cannot create directory objects (for example CI, which is why the [E2E Test](#e2e-test) workflow uses this path), opt out to deploy a public endpoint:
 
 ```bash
-azd env set ENTRA_CLIENT_ID <application-client-id>
-azd env set ENTRA_OPENID_ISSUER https://login.microsoftonline.com/<tenant-id>/v2.0
+azd env set AUTH_DISABLED true
+azd up
 ```
-
-When `ENTRA_CLIENT_ID` is set, the deployment adds an auth config that returns `401` to unauthenticated callers (suited to non-interactive MCP clients).
 
 ## Included Workflows
 
@@ -108,7 +114,7 @@ Automates provisioning of infrastructure, application deployment, test execution
   - `environment` — azd environment name (default: auto-generated from run ID)
   - `location` — Azure region (default: `japaneast`)
 
-> **Note**: This workflow is manual-only. The container app pulls its image using a managed identity whose `AcrPull` role assignment is created during `azd provision`, which requires the deployment principal to hold `Microsoft.Authorization/roleAssignments/write` (e.g. **Role Based Access Control Administrator**), not just **Contributor**. Pull requests are validated by the credential-free [Build Check](#build-check) workflow instead.
+> **Note**: This workflow is manual-only. The container app pulls its image using a managed identity whose `AcrPull` role assignment is created during `azd provision`, which requires the deployment principal to hold `Microsoft.Authorization/roleAssignments/write` (e.g. **Role Based Access Control Administrator**), not just **Contributor**. The CI principal also cannot create Entra app registrations, so this workflow sets `AUTH_DISABLED=true` to deploy the endpoint unauthenticated (the [opt-out](#deploy-without-authentication-opt-in) above). Pull requests are validated by the credential-free [Build Check](#build-check) workflow instead.
 
 **Smoke test**: After deployment, the "Smoke test deployed MCP server" step calls the live endpoint (MCP `initialize` → `tools/list` → `tools/call`) and runs [`scripts/verify_mcp_response.py`](scripts/verify_mcp_response.py), which parses the response and asserts the returned records are well-formed and exactly match the repo's `data/reference-usecases/` source data.
 
