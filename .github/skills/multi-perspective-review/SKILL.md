@@ -13,10 +13,10 @@ description: >-
 
 # Multi-Perspective Review
 
-Run a thorough review by fanning out **nine subagents in parallel**, one per
-perspective, then aggregating their findings into one prioritized report. Each
-subagent examines the *same* changes through a *different* lens, so coverage is
-broad while each lens stays deep and focused.
+Run a thorough review from nine perspectives. Scale effort to the size of the
+change: subagents are expensive and should only be launched when the diff is
+large enough to justify them. Each perspective examines the *same* changes
+through a *different* lens.
 
 ## 1. Determine the review scope and objective
 
@@ -24,19 +24,34 @@ broad while each lens stays deep and focused.
    PR → `gh pr diff <n>`; current branch → `git diff main...HEAD` (fall back to
    the repo's default branch); local work → `git diff` / `git diff --staged`.
 2. Record the changed files + the diff. Pass this **identical** scope to every
-   subagent.
+   subagent (if used).
 3. Identify the **objective** the change must satisfy — the linked GitHub issue,
    the PR description, or the user's stated goal (e.g. `gh issue view <n>`),
    including any explicit out-of-scope items. The simplicity and scope-cutting
    perspectives require this.
 
-## 2. Dispatch nine subagents in parallel
+## 2. Choose the review mode based on diff size
 
-Launch all nine with the `task` tool, `agent_type: general-purpose`, in a single
-batch so they run concurrently. For each subagent, read the matching rubric file
-in this skill's `perspectives/` directory and include **its full contents** in
-the subagent's prompt, together with the review scope, the objective, and the
-shared output contract below.
+Run `git diff --stat` (or `gh pr diff <n> --stat`) and count total **changed lines**
+and **changed files**.
+
+| Tier | Signal | Action |
+|------|--------|--------|
+| **Tiny** | ≤ 50 changed lines **or** ≤ 3 files | Review all perspectives **inline** — read the relevant rubric files yourself. No subagents. |
+| **Small** | 51–200 lines **and** 4–8 files | Launch **3–4 most relevant subagents** in parallel; cover the rest inline. |
+| **Large** | > 200 lines **or** > 9 files | Launch all nine perspectives as **parallel subagents** (full fan-out). |
+
+For Small diffs, choose the 3–4 perspectives most applicable to the change type
+(e.g., a new auth flow → Security, OWASP-LLM, OWASP-Agentic, Simplicity; an
+infra-only change → Reliability, Cost, Operational Excellence, Security).
+
+## 3. Dispatch subagents (Small and Large tiers only)
+
+Launch with the `task` tool, `agent_type: general-purpose`. For Large diffs,
+launch all nine in a single batch so they run concurrently. For each subagent,
+read the matching rubric file in this skill's `perspectives/` directory and include
+**its full contents** in the subagent's prompt, together with the review scope, the
+objective, and the shared output contract below.
 
 | # | Perspective | Rubric file |
 |---|-------------|-------------|
@@ -56,6 +71,11 @@ using its rubric file.
 
 ### Shared output contract (give to every subagent)
 
+> **Tool call budget: stop after at most 15 tool calls.** Start with the diff
+> itself; read surrounding files only when essential to form a concrete finding.
+> If you are uncertain without more exploration, note the uncertainty and stop —
+> do not keep digging.
+>
 > Report only genuine, actionable findings — no style nits, no praise, no filler.
 > For each finding output:
 > - **Severity**: Critical / High / Medium / Low (definitions below)
@@ -75,7 +95,7 @@ using its rubric file.
 - **Medium** — meaningful risk, cost, or maintainability problem; should fix.
 - **Low** — minor improvement; safe to defer.
 
-## 3. Aggregate into one report
+## 4. Aggregate into one report
 
 1. **Merge & de-duplicate** — the same issue often surfaces under several lenses;
    keep one entry and note the lenses it spans.

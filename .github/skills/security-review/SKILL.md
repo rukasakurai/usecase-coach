@@ -12,11 +12,10 @@ description: >-
 
 # Security Review
 
-Run a focused security review by fanning out **three subagents in parallel**, one
-per angle, then aggregating their findings into one prioritized report. The three
-angles are deliberately different mindsets so coverage is broad: offensive
-(break in), confidentiality (get data out), and architectural (is the cloud
-posture sound).
+Run a focused security review from three angles — offensive (break in),
+confidentiality (get data out), and architectural (cloud posture). Scale effort
+to the size of the change: subagents are expensive and should only be launched
+when the diff is large enough to justify them.
 
 ## 1. Determine the review scope and objective
 
@@ -24,18 +23,33 @@ posture sound).
    `gh pr diff <n>`; current branch → `git diff main...HEAD` (fall back to the
    default branch); local work → `git diff` / `git diff --staged`.
 2. Record the changed files + diff and pass the **identical** scope to every
-   subagent. Also give them read access to the surrounding code they need to
-   judge exploitability (auth middleware, IaC, workflows, data files).
+   subagent (if used). Also give them read access to the surrounding code they
+   need to judge exploitability (auth middleware, IaC, workflows, data files).
 3. Note the system context: this repo's MCP server returns JSON records from disk
    to LLM clients over Streamable HTTP, deployed to Azure Container Apps via Bicep
    + azd + GitHub Actions (OIDC), with optional Entra auth.
 
-## 2. Dispatch three subagents in parallel
+## 2. Choose the review mode based on diff size
 
-Launch all three with the `task` tool, `agent_type: general-purpose`, in a single
-batch so they run concurrently. For each subagent, read the matching rubric file
-in this skill's `perspectives/` directory and include **its full contents** in the
-subagent's prompt, along with the scope and the shared output contract below.
+Run `git diff --stat` (or `gh pr diff <n> --stat`) and count total **changed lines**
+and **changed files**.
+
+| Tier | Signal | Action |
+|------|--------|--------|
+| **Tiny** | ≤ 50 changed lines **or** ≤ 3 files | Review all three angles **inline** — read the rubric files yourself and apply each lens directly. No subagents. |
+| **Small** | 51–200 lines **and** 4–8 files | Launch **only the most relevant angle** as a single subagent; do the other two inline. |
+| **Large** | > 200 lines **or** > 9 files | Launch all three angles as **parallel subagents** (original full fan-out). |
+
+For Small diffs, pick the single most security-relevant angle for the change type
+(e.g., IaC/auth change → cloud architect; new endpoint → white-hat hacker; secrets
+or data handling → confidential leakage).
+
+## 3. Dispatch subagents (Small and Large tiers only)
+
+Launch with the `task` tool, `agent_type: general-purpose`. For each subagent,
+read the matching rubric file in this skill's `perspectives/` directory and include
+**its full contents** in the subagent's prompt, along with the scope and the shared
+output contract below.
 
 | # | Angle | Rubric file |
 |---|-------|-------------|
@@ -48,6 +62,11 @@ useful, do that angle yourself using its rubric file.
 
 ### Shared output contract (give to every subagent)
 
+> **Tool call budget: stop after at most 15 tool calls.** Start with the diff
+> itself; read surrounding files only when essential to judge exploitability. If
+> you are uncertain whether a path is exploitable without more exploration, note
+> the uncertainty and stop — do not keep digging.
+>
 > Report only genuine, actionable security findings — no style nits, no praise,
 > no speculative "could theoretically" filler. For each finding output:
 > - **Severity**: Critical / High / Medium / Low (definitions below)
@@ -65,7 +84,7 @@ useful, do that angle yourself using its rubric file.
 - **Medium** — meaningful weakness needing defense-in-depth; not directly exploitable.
 - **Low** — minor hardening opportunity.
 
-## 3. Aggregate into one report
+## 4. Aggregate into one report
 
 1. **Merge & de-duplicate** — the same issue often appears under multiple angles
    (e.g. ACR admin credentials = hacker *and* architect *and* leakage). Keep one
