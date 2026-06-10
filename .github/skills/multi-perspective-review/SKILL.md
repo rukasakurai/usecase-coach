@@ -14,9 +14,9 @@ description: >-
 # Multi-Perspective Review
 
 Run a thorough review from nine perspectives. Scale effort to the size of the
-change: subagents are expensive and should only be launched when the diff is
-large enough to justify them. Each perspective examines the *same* changes
-through a *different* lens.
+change: under GitHub's token-based billing every subagent model call is billed,
+so subagents should only be launched when the diff is large enough to justify
+them. Each perspective examines the *same* changes through a *different* lens.
 
 ## 1. Determine the review scope and objective
 
@@ -51,7 +51,9 @@ Launch with the `task` tool, `agent_type: general-purpose`. For Large diffs,
 launch all nine in a single batch so they run concurrently. For each subagent,
 read the matching rubric file in this skill's `perspectives/` directory and include
 **its full contents** in the subagent's prompt, together with the review scope, the
-objective, and the shared output contract below.
+objective, and the shared output contract below. Use `model: claude-haiku-4.5` for
+Small-tier subagents to reduce cost; reserve the default Sonnet model for Large-tier
+full fan-outs.
 
 | # | Perspective | Rubric file |
 |---|-------------|-------------|

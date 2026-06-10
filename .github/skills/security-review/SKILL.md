@@ -14,8 +14,9 @@ description: >-
 
 Run a focused security review from three angles — offensive (break in),
 confidentiality (get data out), and architectural (cloud posture). Scale effort
-to the size of the change: subagents are expensive and should only be launched
-when the diff is large enough to justify them.
+to the size of the change: under GitHub's token-based billing every subagent
+model call is billed, so subagents should only be launched when the diff is
+large enough to justify them.
 
 ## 1. Determine the review scope and objective
 
@@ -49,7 +50,8 @@ or data handling → confidential leakage).
 Launch with the `task` tool, `agent_type: general-purpose`. For each subagent,
 read the matching rubric file in this skill's `perspectives/` directory and include
 **its full contents** in the subagent's prompt, along with the scope and the shared
-output contract below.
+output contract below. Use `model: claude-haiku-4.5` for Small-tier subagents to
+reduce cost; reserve the default Sonnet model for Large-tier full fan-outs.
 
 | # | Angle | Rubric file |
 |---|-------|-------------|
