@@ -6,7 +6,7 @@ A Socratic discovery coach for finding AI use cases from one's own strengths and
 
 usecase-coach challenges copy-others thinking and judges ideas by the impact they would produce, rather than serving up generic examples to imitate. Reference use cases in this repo are inspiration for analogy, not templates to copy.
 
-**Status: very early — concept stage.** No working coach yet.
+**Status: early.** The coach is exposed as an MCP tool backed by a Microsoft Foundry model; see [MCP Server](#mcp-server).
 
 ## Repository Contents
 
@@ -22,13 +22,32 @@ A minimal [Model Context Protocol](https://modelcontextprotocol.io/) server (in 
 
 - **Runtime**: .NET 10 ASP.NET Core using [`ModelContextProtocol.AspNetCore`](https://www.nuget.org/packages/ModelContextProtocol.AspNetCore) (Streamable HTTP transport).
 - **Endpoint**: `/mcp` (a plain `GET /` returns a human-readable status string).
-- **Tool**: `get_reference_usecases` — returns every record in `data/reference-usecases/` (excluding `schema.json`). The data directory is resolved from the `REFERENCE_USECASES_DIR` environment variable, falling back to a `data/reference-usecases` folder discovered upward from the working directory.
+- **Tools**:
+  - `coach` — the Socratic discovery coach. Given the conversation so far (the user's strengths, pain points, and any ideas), it replies with focused questions that draw the use case out of the user, using the reference use cases only as analogies and weighing ideas by their likely impact. Backed by a Microsoft Foundry chat model (see [Coach configuration](#coach-configuration)).
+  - `get_reference_usecases` — returns every record in `data/reference-usecases/` (excluding `schema.json`). The data directory is resolved from the `REFERENCE_USECASES_DIR` environment variable, falling back to a `data/reference-usecases` folder discovered upward from the working directory.
+
+### Coach configuration
+
+The `coach` tool calls a chat model hosted in [Microsoft Foundry](https://learn.microsoft.com/azure/ai-foundry/). Point it at a deployment with two environment variables — no keys or other environment-specific values live in source:
+
+- `Foundry__Endpoint` — the Foundry account endpoint (e.g. `https://<name>.cognitiveservices.azure.com/`).
+- `Foundry__DeploymentName` — the name of the chat model deployment to call.
+
+Authentication uses [`DefaultAzureCredential`](https://learn.microsoft.com/dotnet/api/azure.identity.defaultazurecredential), so locally the model is reached with your `az login` session and in Azure with the container app's managed identity (granted the **Cognitive Services OpenAI User** role by `azd up`). When these variables are unset the server still starts and `get_reference_usecases` works; the `coach` tool reports that it needs configuration.
 
 ### Run locally
 
 ```bash
 ASPNETCORE_HTTP_PORTS=5099 dotnet run --project app
 # server is then available at http://localhost:5099/mcp
+```
+
+To use the `coach` tool locally, also set the Foundry variables (see [Coach configuration](#coach-configuration)); `get_reference_usecases` works without them:
+
+```bash
+Foundry__Endpoint=https://<name>.cognitiveservices.azure.com/ \
+Foundry__DeploymentName=<deployment> \
+ASPNETCORE_HTTP_PORTS=5099 dotnet run --project app
 ```
 
 ### Deploy to Azure
@@ -43,7 +62,7 @@ azd up
 
 ### Test with a prompt
 
-To exercise the server the way an AI agent would, register it with an MCP client and ask a natural-language question — the model decides to call `get_reference_usecases`. The steps are identical for a local or Azure deployment; only the URL differs:
+To exercise the server the way an AI agent would, register it with an MCP client and ask a natural-language question — the model decides which tool to call. The steps are identical for a local or Azure deployment; only the URL differs:
 
 - **Local**: `http://localhost:5099/mcp`
 - **Azure**: `https://<app-fqdn>/mcp` (the `SERVICE_MCP_URI` from the `azd` output)
@@ -71,7 +90,7 @@ Equivalently, add it to `~/.copilot/mcp-config.json`:
 
 Then enter a prompt, for example:
 
-> Using the usecase-coach server, show me a reference AI use case and explain the pattern.
+> Using the usecase-coach server, coach me toward an AI use case — I'm strong at data analysis and spend too long writing status updates.
 
 #### Remove client setup after testing
 
@@ -105,6 +124,8 @@ Where the deploying identity cannot create directory objects (for example CI, wh
 azd env set AUTH_DISABLED true
 azd up
 ```
+
+> **Cost note**: a public endpoint exposes the `coach` tool — which calls a paid Foundry model — to anonymous callers. Per-request work is bounded (input length cap and a small output-token limit) and the model deployment's provisioned throughput caps spend, but use this path only for short-lived testing and tear it down with `azd down` afterwards.
 
 ## Included Workflows
 
