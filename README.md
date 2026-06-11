@@ -84,9 +84,16 @@ Then enter a prompt, for example:
 
 ### Authentication
 
-The Azure deployment is **protected by Microsoft Entra ID by default**. `azd up` provisions the endpoint's own Entra app registration and service principal and wires Container Apps' built-in auth to it, so unauthenticated callers receive `401` (suited to non-interactive MCP clients). No app registration is created by hand and no client/tenant IDs are copied into configuration.
+The Azure deployment is **protected by Microsoft Entra ID by default**. The MCP server validates Microsoft Entra access tokens and advertises [RFC 9728](https://datatracker.ietf.org/doc/rfc9728/) OAuth 2.0 Protected Resource Metadata, as required by the [MCP authorization spec](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization). Unauthenticated calls to `/mcp` get a `401` whose `WWW-Authenticate` header points to `/.well-known/oauth-protected-resource`, so a spec-compliant MCP client can discover where to sign in. `azd up` provisions the endpoint's own Entra app registration (exposing a `user_impersonation` scope) — no app registration is created by hand and no client/tenant IDs are copied into configuration.
 
-To connect, a client requests a token for the endpoint's app (the audience) and sends it as a bearer token to `/mcp`. The deployment exposes the app's client ID as the `MCP_ENTRA_CLIENT_ID` output (`azd env get-value MCP_ENTRA_CLIENT_ID`).
+MCP clients that implement the authorization flow run an interactive OAuth 2.1 sign-in (browser, with automatic token refresh) — you do **not** paste tokens by hand:
+
+- **VS Code** (agent mode): set `"oauth": { "clientId": "<MCP_ENTRA_CLIENT_ID>" }` on the server entry in `mcp.json`; VS Code opens a browser on first connection.
+- **GitHub Copilot CLI**: configure the remote server with its `oauthClientId` (the OAuth flow then runs automatically).
+
+The deployment exposes the values clients need as outputs: `azd env get-value MCP_ENTRA_CLIENT_ID` and `azd env get-value MCP_ENTRA_SCOPE`.
+
+> **Note**: Authentication is enforced **in the server** (not Container Apps' built-in "Easy Auth"), because Easy Auth currently returns a bare `401` without the RFC 9728 resource-metadata pointer MCP clients need. If Easy Auth ships RFC 9728 support (the App Service [`WEBSITE_AUTH_PRM_DEFAULT_WITH_SCOPES`](https://learn.microsoft.com/en-us/azure/app-service/configure-authentication-mcp) preview), this could move back to the platform.
 
 Because the default deployment creates directory objects (an app registration and service principal), the identity running `azd up` needs permission to do so — for example the **Application Administrator** (or Cloud Application Administrator) Microsoft Entra role, or a tenant where the *Users can register applications* setting is enabled.
 

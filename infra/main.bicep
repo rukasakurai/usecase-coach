@@ -101,6 +101,7 @@ resource mcp 'Microsoft.App/containerApps@2024-03-01' = {
             cpu: json('0.25')
             memory: '0.5Gi'
           }
+          env: mcpAuthEnv
         }
       ]
       scale: {
@@ -112,22 +113,36 @@ resource mcp 'Microsoft.App/containerApps@2024-03-01' = {
   dependsOn: [acrPull]
 }
 
-// Microsoft Entra ID auth for the endpoint, provisioned in this deployment (app
-// registration + service principal + Container Apps auth config) so protecting a
-// deployment needs no hand-registered app and no client/tenant IDs copied into config.
-// Kept in a conditional module so its Microsoft Graph extension is engaged only when
-// auth is enabled — when disableAuth is set the deployment touches no directory objects,
-// suiting CI identities that cannot create them. The endpoint is then public.
+// The MCP server enforces Microsoft Entra ID auth itself (RFC 9728 Protected Resource
+// Metadata + JWT validation). The app registration that represents the endpoint as a
+// protected API is provisioned in a conditional module so its Microsoft Graph extension
+// is engaged only when auth is enabled — when disableAuth is set the deployment touches
+// no directory objects (suiting CI identities that cannot create them) and the endpoint
+// is public.
 module authModule 'auth.bicep' = if (!disableAuth) {
   name: 'mcp-auth'
   params: {
-    containerAppName: mcp.name
     appDisplayName: 'usecase-coach MCP (${environmentName})'
     resourceToken: resourceToken
   }
 }
 
+// Auth settings passed to the container (Mcp:Auth:* configuration). When auth is
+// disabled the server runs public; otherwise it validates tokens for this deployment's
+// own app registration.
+var mcpAuthEnv = disableAuth
+  ? [
+      { name: 'Mcp__Auth__Enabled', value: 'false' }
+    ]
+  : [
+      { name: 'Mcp__Auth__Enabled', value: 'true' }
+      { name: 'Mcp__Auth__TenantId', value: tenant().tenantId }
+      { name: 'Mcp__Auth__ClientId', value: authModule!.outputs.clientId }
+      { name: 'Mcp__Auth__Scope', value: authModule!.outputs.scope }
+    ]
+
 output AZURE_CONTAINER_REGISTRY_ENDPOINT string = registry.properties.loginServer
 output SERVICE_MCP_URI string = 'https://${mcp.properties.configuration.ingress.fqdn}'
 output MCP_AUTH_ENABLED bool = !disableAuth
 output MCP_ENTRA_CLIENT_ID string = disableAuth ? '' : authModule!.outputs.clientId
+output MCP_ENTRA_SCOPE string = disableAuth ? '' : authModule!.outputs.scope
