@@ -133,6 +133,24 @@ jobs:
             -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"get_reference_usecases","arguments":{}}}' -o /tmp/call.txt
           python3 scripts/verify_mcp_response.py --response /tmp/call.txt --data-dir data/reference-usecases
 
+      - name: Dump container diagnostics on failure
+        if: failure()
+        run: |
+          set +e
+          RG="rg-$AZD_ENVIRONMENT"
+          APP=$(az containerapp list -g "$RG" --query "[0].name" -o tsv 2>/dev/null)
+          echo "Resource group: $RG"
+          echo "Container app: ${APP:-<none found>}"
+          [ -z "$APP" ] && exit 0
+          echo "=== Revisions ==="
+          az containerapp revision list -g "$RG" -n "$APP" \
+            --query "[].{name:name, active:properties.active, running:properties.runningState, health:properties.healthState, replicas:properties.replicas}" \
+            -o table
+          echo "=== Console logs (last 100) ==="
+          az containerapp logs show -g "$RG" -n "$APP" --type console --tail 100
+          echo "=== System logs (last 50) ==="
+          az containerapp logs show -g "$RG" -n "$APP" --type system --tail 50
+
       - name: Cleanup (azd down)
         if: always() && inputs.cleanup != false
         run: azd down --no-prompt --force --purge
