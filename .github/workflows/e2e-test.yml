@@ -15,7 +15,7 @@ on:
         type: boolean
         default: true
       environment:
-        description: "azd environment name"
+        description: "azd environment name (optional; leave blank to auto-generate from the run ID)"
         required: false
         type: string
       location:
