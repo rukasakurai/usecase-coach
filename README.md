@@ -48,7 +48,16 @@ To exercise the server the way an AI agent would, register it with an MCP client
 - **Local**: `http://localhost:5099/mcp`
 - **Azure**: `https://<app-fqdn>/mcp` (the `SERVICE_MCP_URI` from the `azd` output)
 
-Using [GitHub Copilot CLI](https://docs.github.com/copilot/how-tos/use-copilot-agents/use-copilot-cli) as the client, run `/mcp add` and set Name `usecase-coach`, Type `http`, and the URL above (press <kbd>Ctrl</kbd>+<kbd>S</kbd> to save). Equivalently, add it to `~/.copilot/mcp-config.json`:
+Using [GitHub Copilot CLI](https://docs.github.com/copilot/how-tos/use-copilot-agents/use-copilot-cli) as the client, run `/mcp add` and set the form fields as follows (press <kbd>Ctrl</kbd>+<kbd>S</kbd> to save):
+
+- **Server Name**: `usecase-coach`
+- **Server Type**: `2` (**HTTP**)
+- **URL**: `http://localhost:5099/mcp` (local) or `https://<app-fqdn>/mcp` (Azure)
+- **Command**: leave empty (only used for STDIO servers)
+- **Environment Variables**: leave empty unless your client setup needs extra variables
+- **Tools**: `*` (or keep the default)
+
+Equivalently, add it to `~/.copilot/mcp-config.json`:
 
 ```json
 {
