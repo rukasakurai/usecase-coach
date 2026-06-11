@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using ModelContextProtocol.AspNetCore.Authentication;
+using UsecaseCoach.Mcp;
 using UsecaseCoach.Mcp.Tools;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -19,16 +21,19 @@ builder.Services.AddMcpServer()
     .WithHttpTransport()
     .WithTools<ReferenceUsecaseTools>();
 
-// Auth is opt-out: enabled for the Entra-protected Azure deployment, disabled for
-// local runs and the public (AUTH_DISABLED) deployment path.
-var authEnabled = builder.Configuration.GetValue("Mcp:Auth:Enabled", false);
-if (authEnabled)
+// Bind and validate MCP auth configuration (opt-out: auth enabled by default).
+// ValidateOnStart() ensures config errors fail at startup, not at first use.
+builder.Services
+    .AddOptions<McpAuthOptions>()
+    .BindConfiguration("Mcp:Auth")
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+// Configure authentication if enabled in Mcp:Auth:Enabled
+var mcpAuthOptions = builder.Configuration.GetSection("Mcp:Auth").Get<McpAuthOptions>() ?? new();
+if (mcpAuthOptions.Enabled)
 {
-    var tenantId = Required(builder.Configuration, "Mcp:Auth:TenantId");
-    var clientId = Required(builder.Configuration, "Mcp:Auth:ClientId");
-    var scope = Required(builder.Configuration, "Mcp:Auth:Scope");
-    var instance = builder.Configuration["Mcp:Auth:Instance"] ?? "https://login.microsoftonline.com/";
-    var authority = $"{instance.TrimEnd('/')}/{tenantId}/v2.0";
+    var authority = mcpAuthOptions.GetAuthority();
 
     // Validate Entra access tokens in-process and advertise RFC 9728 Protected
     // Resource Metadata so MCP clients (VS Code, Copilot CLI) can run their built-in
@@ -51,7 +56,8 @@ if (authEnabled)
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
             // v2 access tokens carry the resource app's client ID as the audience.
-            ValidAudiences = [clientId, $"api://{clientId}"],
+            // [Required] validation ensures these are non-null when Enabled is true.
+            ValidAudiences = [mcpAuthOptions.ClientId!, $"api://{mcpAuthOptions.ClientId}"],
         };
     })
     .AddMcp(options =>
@@ -59,7 +65,7 @@ if (authEnabled)
         options.ResourceMetadata = new()
         {
             AuthorizationServers = { authority },
-            ScopesSupported = [scope],
+            ScopesSupported = [mcpAuthOptions.Scope!],
         };
     });
 
@@ -70,7 +76,7 @@ var app = builder.Build();
 
 app.UseForwardedHeaders();
 
-if (authEnabled)
+if (mcpAuthOptions.Enabled)
 {
     app.UseAuthentication();
     app.UseAuthorization();
@@ -79,13 +85,9 @@ if (authEnabled)
 app.MapGet("/", () => "usecase-coach MCP server. Connect an MCP client to /mcp.");
 
 var mcpEndpoints = app.MapMcp("/mcp");
-if (authEnabled)
+if (mcpAuthOptions.Enabled)
 {
     mcpEndpoints.RequireAuthorization();
 }
 
 app.Run();
-
-static string Required(IConfiguration configuration, string key) =>
-    configuration[key] ?? throw new InvalidOperationException(
-        $"Configuration '{key}' is required when Mcp:Auth:Enabled is true.");
