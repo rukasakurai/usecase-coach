@@ -74,6 +74,27 @@ Then enter a prompt, for example:
 
 > The default Azure deployment requires authentication: the client must present a valid Microsoft Entra token (see [Authentication](#authentication)). A deployment is only public if it explicitly opts out of auth.
 
+#### Azure auth quick test flow
+
+```bash
+# values from your deployed azd environment
+MCP_URI="$(azd env get-value SERVICE_MCP_URI)"
+MCP_ENTRA_CLIENT_ID="$(azd env get-value MCP_ENTRA_CLIENT_ID)"
+TENANT_ID="$(az account show --query tenantId -o tsv)"
+
+# sanity-check: unauthenticated requests should return 401
+curl -i -X POST "$MCP_URI/mcp" \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"probe","version":"1"}}}'
+
+# sign in with a scope for the MCP app audience, then acquire a bearer token
+az login --tenant "$TENANT_ID" --scope "${MCP_ENTRA_CLIENT_ID}/.default"
+ACCESS_TOKEN="$(az account get-access-token --scope "${MCP_ENTRA_CLIENT_ID}/.default" --query accessToken -o tsv)"
+```
+
+Then configure your MCP client (Copilot CLI / VS Code / Inspector) to send `Authorization: Bearer <ACCESS_TOKEN>` on requests to `$MCP_URI/mcp`. Tokens expire; refresh when needed.
+
 ### Authentication
 
 The Azure deployment is **protected by Microsoft Entra ID by default**. `azd up` provisions the endpoint's own Entra app registration and service principal and wires Container Apps' built-in auth to it, so unauthenticated callers receive `401` (suited to non-interactive MCP clients). No app registration is created by hand and no client/tenant IDs are copied into configuration.
