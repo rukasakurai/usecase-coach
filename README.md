@@ -53,8 +53,9 @@ Using [GitHub Copilot CLI](https://docs.github.com/copilot/how-tos/use-copilot-a
 - **Server Name**: `usecase-coach`
 - **Server Type**: `2` (**HTTP**)
 - **URL**: `http://localhost:5099/mcp` (local) or `https://<app-fqdn>/mcp` (Azure)
-- **Command**: leave empty (only used for STDIO servers)
-- **Environment Variables**: leave empty unless your client setup needs extra variables
+- **HTTP Headers**:
+  - local: leave empty
+  - Azure (Entra auth): `{"Authorization":"Bearer <ACCESS_TOKEN>"}`
 - **Tools**: `*` (or keep the default)
 
 Equivalently, add it to `~/.copilot/mcp-config.json`:
@@ -65,6 +66,22 @@ Equivalently, add it to `~/.copilot/mcp-config.json`:
     "usecase-coach": {
       "type": "http",
       "url": "http://localhost:5099/mcp"
+    }
+  }
+}
+```
+
+For an Entra-protected Azure endpoint, include headers in that same entry:
+
+```json
+{
+  "mcpServers": {
+    "usecase-coach": {
+      "type": "http",
+      "url": "https://<app-fqdn>/mcp",
+      "headers": {
+        "Authorization": "Bearer <ACCESS_TOKEN>"
+      }
     }
   }
 }
