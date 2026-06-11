@@ -53,9 +53,7 @@ Using [GitHub Copilot CLI](https://docs.github.com/copilot/how-tos/use-copilot-a
 - **Server Name**: `usecase-coach`
 - **Server Type**: `2` (**HTTP**)
 - **URL**: `http://localhost:5099/mcp` (local) or `https://<app-fqdn>/mcp` (Azure)
-- **HTTP Headers**:
-  - local: leave empty
-  - Azure (Entra auth): `{"Authorization":"Bearer <ACCESS_TOKEN>"}`
+- **HTTP Headers**: leave empty
 - **Tools**: `*` (or keep the default)
 
 Equivalently, add it to `~/.copilot/mcp-config.json`:
@@ -66,22 +64,6 @@ Equivalently, add it to `~/.copilot/mcp-config.json`:
     "usecase-coach": {
       "type": "http",
       "url": "http://localhost:5099/mcp"
-    }
-  }
-}
-```
-
-For an Entra-protected Azure endpoint, include headers in that same entry:
-
-```json
-{
-  "mcpServers": {
-    "usecase-coach": {
-      "type": "http",
-      "url": "https://<app-fqdn>/mcp",
-      "headers": {
-        "Authorization": "Bearer <ACCESS_TOKEN>"
-      }
     }
   }
 }
@@ -99,27 +81,6 @@ Then enter a prompt, for example:
 **Other clients** accept the same URL — e.g. VS Code agent mode or Claude Desktop. For a quick check without an LLM, use the [MCP Inspector](https://github.com/modelcontextprotocol/inspector): `npx @modelcontextprotocol/inspector`, connect to the URL, and call `get_reference_usecases` directly.
 
 > The default Azure deployment requires authentication: the client must present a valid Microsoft Entra token (see [Authentication](#authentication)). A deployment is only public if it explicitly opts out of auth.
-
-#### Azure auth quick test flow
-
-```bash
-# values from your deployed azd environment
-MCP_URI="$(azd env get-value SERVICE_MCP_URI)"
-MCP_ENTRA_CLIENT_ID="$(azd env get-value MCP_ENTRA_CLIENT_ID)"
-TENANT_ID="$(az account show --query tenantId -o tsv)"
-
-# sanity-check: unauthenticated requests should return 401
-curl -i -X POST "$MCP_URI/mcp" \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"probe","version":"1"}}}'
-
-# sign in with a scope for the MCP app audience, then acquire a bearer token
-az login --tenant "$TENANT_ID" --scope "${MCP_ENTRA_CLIENT_ID}/.default"
-ACCESS_TOKEN="$(az account get-access-token --scope "${MCP_ENTRA_CLIENT_ID}/.default" --query accessToken -o tsv)"
-```
-
-Then configure your MCP client (Copilot CLI / VS Code / Inspector) to send `Authorization: Bearer <ACCESS_TOKEN>` on requests to `$MCP_URI/mcp`. Tokens expire; refresh when needed.
 
 ### Authentication
 
