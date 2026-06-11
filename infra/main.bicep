@@ -10,11 +10,8 @@ param location string = resourceGroup().location
 @description('Container image for the MCP service. azd sets this after building/pushing; empty uses a placeholder for the first provision.')
 param mcpImageName string = ''
 
-@description('Entra application (client) ID for Container Apps built-in auth. Leave empty to deploy without authentication.')
-param entraClientId string = ''
-
-@description('OpenID issuer URL for Entra auth, e.g. https://login.microsoftonline.com/<tenant-id>/v2.0')
-param entraOpenIdIssuer string = ''
+@description('Deploy the endpoint WITHOUT authentication (public). Defaults to false: the endpoint requires Microsoft Entra ID auth and its app registration is provisioned by this deployment. Set to true only where the deploying identity cannot create Entra app registrations (e.g. CI).')
+param disableAuth bool = false
 
 var resourceToken = uniqueString(resourceGroup().id, environmentName)
 var tags = { 'azd-env-name': environmentName }
@@ -104,6 +101,7 @@ resource mcp 'Microsoft.App/containerApps@2024-03-01' = {
             cpu: json('0.25')
             memory: '0.5Gi'
           }
+          env: mcpAuthEnv
         }
       ]
       scale: {
@@ -115,26 +113,36 @@ resource mcp 'Microsoft.App/containerApps@2024-03-01' = {
   dependsOn: [acrPull]
 }
 
-// Container Apps built-in Entra ID auth. Only created when a client ID is supplied,
-// so the default deployment stays public and CI does not require an app registration.
-// Return401 (rather than a browser redirect) suits non-interactive MCP clients.
-resource auth 'Microsoft.App/containerApps/authConfigs@2024-03-01' = if (!empty(entraClientId)) {
-  parent: mcp
-  name: 'current'
-  properties: {
-    platform: { enabled: true }
-    globalValidation: { unauthenticatedClientAction: 'Return401' }
-    identityProviders: {
-      azureActiveDirectory: {
-        enabled: true
-        registration: {
-          clientId: entraClientId
-          openIdIssuer: entraOpenIdIssuer
-        }
-      }
-    }
+// The MCP server enforces Microsoft Entra ID auth itself (RFC 9728 Protected Resource
+// Metadata + JWT validation). The app registration that represents the endpoint as a
+// protected API is provisioned in a conditional module so its Microsoft Graph extension
+// is engaged only when auth is enabled — when disableAuth is set the deployment touches
+// no directory objects (suiting CI identities that cannot create them) and the endpoint
+// is public.
+module authModule 'auth.bicep' = if (!disableAuth) {
+  name: 'mcp-auth'
+  params: {
+    appDisplayName: 'usecase-coach MCP (${environmentName})'
+    resourceToken: resourceToken
   }
 }
 
+// Auth settings passed to the container (Mcp:Auth:* configuration). When auth is
+// disabled the server runs public; otherwise it validates tokens for this deployment's
+// own app registration.
+var mcpAuthEnv = disableAuth
+  ? [
+      { name: 'Mcp__Auth__Enabled', value: 'false' }
+    ]
+  : [
+      { name: 'Mcp__Auth__Enabled', value: 'true' }
+      { name: 'Mcp__Auth__TenantId', value: tenant().tenantId }
+      { name: 'Mcp__Auth__ClientId', value: authModule!.outputs.clientId }
+      { name: 'Mcp__Auth__Scope', value: authModule!.outputs.scope }
+    ]
+
 output AZURE_CONTAINER_REGISTRY_ENDPOINT string = registry.properties.loginServer
 output SERVICE_MCP_URI string = 'https://${mcp.properties.configuration.ingress.fqdn}'
+output MCP_AUTH_ENABLED bool = !disableAuth
+output MCP_ENTRA_CLIENT_ID string = disableAuth ? '' : authModule!.outputs.clientId
+output MCP_ENTRA_SCOPE string = disableAuth ? '' : authModule!.outputs.scope

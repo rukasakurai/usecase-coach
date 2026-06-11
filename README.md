@@ -48,7 +48,15 @@ To exercise the server the way an AI agent would, register it with an MCP client
 - **Local**: `http://localhost:5099/mcp`
 - **Azure**: `https://<app-fqdn>/mcp` (the `SERVICE_MCP_URI` from the `azd` output)
 
-Using [GitHub Copilot CLI](https://docs.github.com/copilot/how-tos/use-copilot-agents/use-copilot-cli) as the client, run `/mcp add` and set Name `usecase-coach`, Type `http`, and the URL above (press <kbd>Ctrl</kbd>+<kbd>S</kbd> to save). Equivalently, add it to `~/.copilot/mcp-config.json`:
+Using [GitHub Copilot CLI](https://docs.github.com/copilot/how-tos/use-copilot-agents/use-copilot-cli) as the client, run `/mcp add` and set the form fields as follows (press <kbd>Ctrl</kbd>+<kbd>S</kbd> to save):
+
+- **Server Name**: `usecase-coach`
+- **Server Type**: `2` (**HTTP**)
+- **URL**: `http://localhost:5099/mcp` (local) or `https://<app-fqdn>/mcp` (Azure)
+- **HTTP Headers**: leave empty
+- **Tools**: `*` (or keep the default)
+
+Equivalently, add it to `~/.copilot/mcp-config.json`:
 
 ```json
 {
@@ -65,20 +73,38 @@ Then enter a prompt, for example:
 
 > Using the usecase-coach server, show me a reference AI use case and explain the pattern.
 
+#### Remove client setup after testing
+
+- **GitHub Copilot CLI**: remove the `usecase-coach` server entry from your MCP config (either via `/mcp` in the CLI UI, or by deleting the `usecase-coach` object from `~/.copilot/mcp-config.json`).
+- **VS Code (agent mode)**: remove the same `usecase-coach` MCP server entry from whichever scope you added it (User or Workspace settings).
+
 **Other clients** accept the same URL — e.g. VS Code agent mode or Claude Desktop. For a quick check without an LLM, use the [MCP Inspector](https://github.com/modelcontextprotocol/inspector): `npx @modelcontextprotocol/inspector`, connect to the URL, and call `get_reference_usecases` directly.
 
-> If the Azure deployment has authentication enabled (see below), the client must present a valid Microsoft Entra token. The default deployment is unauthenticated.
+> The default Azure deployment requires authentication: the client must present a valid Microsoft Entra token (see [Authentication](#authentication)). A deployment is only public if it explicitly opts out of auth.
 
-### Authentication (optional)
+### Authentication
 
-By default the endpoint is deployed without authentication. To enable Container Apps' built-in Microsoft Entra ID auth, register an Entra application and provide its values before deploying — no IDs are hardcoded:
+The Azure deployment is **protected by Microsoft Entra ID by default**. The MCP server validates Microsoft Entra access tokens and advertises [RFC 9728](https://datatracker.ietf.org/doc/rfc9728/) OAuth 2.0 Protected Resource Metadata, as required by the [MCP authorization spec](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization). Unauthenticated calls to `/mcp` get a `401` whose `WWW-Authenticate` header points to `/.well-known/oauth-protected-resource`, so a spec-compliant MCP client can discover where to sign in. `azd up` provisions the endpoint's own Entra app registration (exposing a `user_impersonation` scope) — no app registration is created by hand and no client/tenant IDs are copied into configuration.
+
+MCP clients that implement the authorization flow run an interactive OAuth 2.1 sign-in (browser, with automatic token refresh) — you do **not** paste tokens by hand:
+
+- **VS Code** (agent mode): set `"oauth": { "clientId": "<MCP_ENTRA_CLIENT_ID>" }` on the server entry in `mcp.json`; VS Code opens a browser on first connection.
+- **GitHub Copilot CLI**: configure the remote server with its `oauthClientId` (the OAuth flow then runs automatically).
+
+The deployment exposes the values clients need as outputs: `azd env get-value MCP_ENTRA_CLIENT_ID` and `azd env get-value MCP_ENTRA_SCOPE`.
+
+> **Note**: Authentication is enforced **in the server** (not Container Apps' built-in "Easy Auth"), because Easy Auth currently returns a bare `401` without the RFC 9728 resource-metadata pointer MCP clients need. If Easy Auth ships RFC 9728 support (the App Service [`WEBSITE_AUTH_PRM_DEFAULT_WITH_SCOPES`](https://learn.microsoft.com/en-us/azure/app-service/configure-authentication-mcp) preview), this could move back to the platform.
+
+Because the default deployment creates directory objects (an app registration and service principal), the identity running `azd up` needs permission to do so — for example the **Application Administrator** (or Cloud Application Administrator) Microsoft Entra role, or a tenant where the *Users can register applications* setting is enabled.
+
+#### Deploy without authentication (opt-in)
+
+Where the deploying identity cannot create directory objects (for example CI, which is why the [E2E Test](#e2e-test) workflow uses this path), opt out to deploy a public endpoint:
 
 ```bash
-azd env set ENTRA_CLIENT_ID <application-client-id>
-azd env set ENTRA_OPENID_ISSUER https://login.microsoftonline.com/<tenant-id>/v2.0
+azd env set AUTH_DISABLED true
+azd up
 ```
-
-When `ENTRA_CLIENT_ID` is set, the deployment adds an auth config that returns `401` to unauthenticated callers (suited to non-interactive MCP clients).
 
 ## Included Workflows
 
@@ -108,7 +134,7 @@ Automates provisioning of infrastructure, application deployment, test execution
   - `environment` — azd environment name (default: auto-generated from run ID)
   - `location` — Azure region (default: `japaneast`)
 
-> **Note**: This workflow is manual-only. The container app pulls its image using a managed identity whose `AcrPull` role assignment is created during `azd provision`, which requires the deployment principal to hold `Microsoft.Authorization/roleAssignments/write` (e.g. **Role Based Access Control Administrator**), not just **Contributor**. Pull requests are validated by the credential-free [Build Check](#build-check) workflow instead.
+> **Note**: This workflow is manual-only. The container app pulls its image using a managed identity whose `AcrPull` role assignment is created during `azd provision`, which requires the deployment principal to hold `Microsoft.Authorization/roleAssignments/write` (e.g. **Role Based Access Control Administrator**), not just **Contributor**. The CI principal also cannot create Entra app registrations, so this workflow sets `AUTH_DISABLED=true` to deploy the endpoint unauthenticated (the [opt-out](#deploy-without-authentication-opt-in) above). Pull requests are validated by the credential-free [Build Check](#build-check) workflow instead.
 
 **Smoke test**: After deployment, the "Smoke test deployed MCP server" step calls the live endpoint (MCP `initialize` → `tools/list` → `tools/call`) and runs [`scripts/verify_mcp_response.py`](scripts/verify_mcp_response.py), which parses the response and asserts the returned records are well-formed and exactly match the repo's `data/reference-usecases/` source data.
 
