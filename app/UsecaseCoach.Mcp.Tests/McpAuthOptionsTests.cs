@@ -16,104 +16,72 @@ public class McpAuthOptionsTests
         string tenantId,
         string expectedAuthority)
     {
-        // Arrange
         var options = new McpAuthOptions
         {
             Instance = instance,
             TenantId = tenantId,
         };
 
-        // Act
         var authority = options.GetAuthority();
 
-        // Assert
         Assert.Equal(expectedAuthority, authority);
     }
 
     [Fact]
-    public void Validate_MissingTenantId_FailsValidation()
+    public void Validate_Disabled_SucceedsEvenWithNoTenantClientOrScope()
     {
-        // Arrange
-        var options = new McpAuthOptions
-        {
-            ClientId = "my-client",
-            Scope = "api://my-client/.default",
-            // TenantId is null/missing
-        };
+        var options = new McpAuthOptions { Enabled = false };
 
-        // Act
-        var context = new ValidationContext(options);
-        var results = new List<ValidationResult>();
-        bool isValid = Validator.TryValidateObject(options, context, results, validateAllProperties: true);
+        var result = Validate(options);
 
-        // Assert
-        Assert.False(isValid);
-        Assert.NotEmpty(results);
-        Assert.True(results.Any(r => r.MemberNames.Contains(nameof(McpAuthOptions.TenantId))),
-            "Validation should fail on missing TenantId");
+        Assert.Empty(result);
     }
 
     [Fact]
-    public void Validate_MissingClientId_FailsValidation()
+    public void Validate_EnabledWithAllRequiredFields_Succeeds()
     {
-        // Arrange
         var options = new McpAuthOptions
         {
-            TenantId = "my-tenant",
-            Scope = "api://my-client/.default",
-            // ClientId is null/missing
-        };
-
-        // Act
-        var context = new ValidationContext(options);
-        var results = new List<ValidationResult>();
-        bool isValid = Validator.TryValidateObject(options, context, results, validateAllProperties: true);
-
-        // Assert
-        Assert.False(isValid);
-        Assert.True(results.Any(r => r.MemberNames.Contains(nameof(McpAuthOptions.ClientId))),
-            "Validation should fail on missing ClientId");
-    }
-
-    [Fact]
-    public void Validate_MissingScope_FailsValidation()
-    {
-        // Arrange
-        var options = new McpAuthOptions
-        {
-            TenantId = "my-tenant",
-            ClientId = "my-client",
-            // Scope is null/missing
-        };
-
-        // Act
-        var context = new ValidationContext(options);
-        var results = new List<ValidationResult>();
-        bool isValid = Validator.TryValidateObject(options, context, results, validateAllProperties: true);
-
-        // Assert
-        Assert.False(isValid);
-        Assert.True(results.Any(r => r.MemberNames.Contains(nameof(McpAuthOptions.Scope))),
-            "Validation should fail on missing Scope");
-    }
-
-    [Fact]
-    public void Validate_AllRequiredFieldsPresent_Succeeds()
-    {
-        // Arrange
-        var options = new McpAuthOptions
-        {
+            Enabled = true,
             TenantId = "my-tenant",
             ClientId = "my-client",
             Scope = "api://my-client/.default",
         };
 
-        // Act
+        var result = Validate(options);
+
+        Assert.Empty(result);
+    }
+
+    [Theory]
+    [InlineData(null, "my-client", "api://my-client/.default", nameof(McpAuthOptions.TenantId))]
+    [InlineData("my-tenant", null, "api://my-client/.default", nameof(McpAuthOptions.ClientId))]
+    [InlineData("my-tenant", "my-client", null, nameof(McpAuthOptions.Scope))]
+    public void Validate_EnabledWithMissingField_Fails(
+        string? tenantId,
+        string? clientId,
+        string? scope,
+        string expectedMissingField)
+    {
+        var options = new McpAuthOptions
+        {
+            Enabled = true,
+            TenantId = tenantId,
+            ClientId = clientId,
+            Scope = scope,
+        };
+
+        var result = Validate(options);
+
+        Assert.NotEmpty(result);
+        Assert.Contains(result, r => r.MemberNames.Contains(expectedMissingField));
+    }
+
+    private static List<ValidationResult> Validate(McpAuthOptions options)
+    {
         var context = new ValidationContext(options);
         var results = new List<ValidationResult>();
-        bool isValid = Validator.TryValidateObject(options, context, results, validateAllProperties: true);
-
-        // Assert
-        Assert.True(isValid, $"Validation should succeed; errors: {string.Join(", ", results.Select(r => r.ErrorMessage))}");
+        Validator.TryValidateObject(options, context, results, validateAllProperties: true);
+        return results;
     }
 }

@@ -6,7 +6,7 @@ namespace UsecaseCoach.Mcp;
 /// Configuration for MCP Entra authentication.
 /// Bound from Mcp:Auth configuration section.
 /// </summary>
-public class McpAuthOptions
+public class McpAuthOptions : IValidatableObject
 {
     /// <summary>
     /// Whether to enable authentication. Defaults to false (public endpoint).
@@ -16,19 +16,16 @@ public class McpAuthOptions
     /// <summary>
     /// Azure AD tenant ID. Required when Enabled is true.
     /// </summary>
-    [Required]
     public string? TenantId { get; set; }
 
     /// <summary>
     /// Azure AD app client ID (app registration ID). Required when Enabled is true.
     /// </summary>
-    [Required]
     public string? ClientId { get; set; }
 
     /// <summary>
     /// OAuth 2.0 scope for the protected API. Required when Enabled is true.
     /// </summary>
-    [Required]
     public string? Scope { get; set; }
 
     /// <summary>
@@ -45,5 +42,38 @@ public class McpAuthOptions
     {
         var baseUrl = Instance.TrimEnd('/');
         return $"{baseUrl}/{TenantId}/v2.0";
+    }
+
+    /// <summary>
+    /// DataAnnotations validation rule: these values are required only when
+    /// authentication is enabled.
+    /// </summary>
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (!Enabled)
+        {
+            yield break;
+        }
+
+        if (string.IsNullOrWhiteSpace(TenantId))
+        {
+            yield return new ValidationResult(
+                "TenantId is required when Mcp:Auth:Enabled is true.",
+                [nameof(TenantId)]);
+        }
+
+        if (string.IsNullOrWhiteSpace(ClientId))
+        {
+            yield return new ValidationResult(
+                "ClientId is required when Mcp:Auth:Enabled is true.",
+                [nameof(ClientId)]);
+        }
+
+        if (string.IsNullOrWhiteSpace(Scope))
+        {
+            yield return new ValidationResult(
+                "Scope is required when Mcp:Auth:Enabled is true.",
+                [nameof(Scope)]);
+        }
     }
 }
