@@ -27,6 +27,9 @@ jobs:
       - name: Build app
         run: dotnet build app/UsecaseCoach.Mcp.csproj -c Release
 
+      - name: Run tests
+        run: dotnet test app/UsecaseCoach.Mcp.Tests/UsecaseCoach.Mcp.Tests.csproj -c Release
+
       - name: Validate Bicep
         run: |
           az bicep install

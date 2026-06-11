@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+using Microsoft.Extensions.Options;
 
 namespace UsecaseCoach.Mcp;
 
@@ -16,19 +16,16 @@ public class McpAuthOptions
     /// <summary>
     /// Azure AD tenant ID. Required when Enabled is true.
     /// </summary>
-    [Required]
     public string? TenantId { get; set; }
 
     /// <summary>
     /// Azure AD app client ID (app registration ID). Required when Enabled is true.
     /// </summary>
-    [Required]
     public string? ClientId { get; set; }
 
     /// <summary>
     /// OAuth 2.0 scope for the protected API. Required when Enabled is true.
     /// </summary>
-    [Required]
     public string? Scope { get; set; }
 
     /// <summary>
@@ -45,5 +42,31 @@ public class McpAuthOptions
     {
         var baseUrl = Instance.TrimEnd('/');
         return $"{baseUrl}/{TenantId}/v2.0";
+    }
+}
+
+/// <summary>
+/// Validates that the Entra values needed for token validation are present,
+/// but only when authentication is enabled. When disabled, the endpoint is
+/// public and no TenantId/ClientId/Scope are required.
+/// </summary>
+public sealed class ValidateMcpAuthOptions : IValidateOptions<McpAuthOptions>
+{
+    public ValidateOptionsResult Validate(string? name, McpAuthOptions options)
+    {
+        if (!options.Enabled)
+        {
+            return ValidateOptionsResult.Success;
+        }
+
+        var missing = new List<string>();
+        if (string.IsNullOrWhiteSpace(options.TenantId)) missing.Add(nameof(McpAuthOptions.TenantId));
+        if (string.IsNullOrWhiteSpace(options.ClientId)) missing.Add(nameof(McpAuthOptions.ClientId));
+        if (string.IsNullOrWhiteSpace(options.Scope)) missing.Add(nameof(McpAuthOptions.Scope));
+
+        return missing.Count == 0
+            ? ValidateOptionsResult.Success
+            : ValidateOptionsResult.Fail(
+                $"Mcp:Auth:Enabled is true but required values are missing: {string.Join(", ", missing)}.");
     }
 }
