@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using ModelContextProtocol.AspNetCore.Authentication;
 using UsecaseCoach.Mcp;
@@ -24,13 +23,13 @@ builder.Services.AddMcpServer()
 // Bind and validate MCP auth configuration (opt-out: auth enabled by default).
 // ValidateOnStart() ensures config errors fail at startup, not at first use.
 // Validation is conditional: TenantId/ClientId/Scope are only required when
-// Mcp:Auth:Enabled is true (see ValidateMcpAuthOptions), so the public endpoint
-// starts without them.
+// Mcp:Auth:Enabled is true (via DataAnnotations + IValidatableObject in
+// McpAuthOptions), so the public endpoint starts without them.
 builder.Services
     .AddOptions<McpAuthOptions>()
     .BindConfiguration("Mcp:Auth")
+    .ValidateDataAnnotations()
     .ValidateOnStart();
-builder.Services.AddSingleton<IValidateOptions<McpAuthOptions>, ValidateMcpAuthOptions>();
 
 // Configure authentication if enabled in Mcp:Auth:Enabled
 var mcpAuthOptions = builder.Configuration.GetSection("Mcp:Auth").Get<McpAuthOptions>() ?? new();
@@ -59,7 +58,7 @@ if (mcpAuthOptions.Enabled)
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
             // v2 access tokens carry the resource app's client ID as the audience.
-            // Validation in ValidateMcpAuthOptions ensures these are non-null when Enabled is true.
+            // Validation in McpAuthOptions.Validate ensures these are non-null when Enabled is true.
             ValidAudiences = [mcpAuthOptions.ClientId!, $"api://{mcpAuthOptions.ClientId}"],
         };
     })

@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Xunit;
 using UsecaseCoach.Mcp;
 
@@ -31,10 +32,9 @@ public class McpAuthOptionsTests
     {
         var options = new McpAuthOptions { Enabled = false };
 
-        var result = new ValidateMcpAuthOptions().Validate(null, options);
+        var result = Validate(options);
 
-        Assert.True(result.Succeeded,
-            "Validation should succeed when auth is disabled, even with no TenantId/ClientId/Scope.");
+        Assert.Empty(result);
     }
 
     [Fact]
@@ -48,9 +48,9 @@ public class McpAuthOptionsTests
             Scope = "api://my-client/.default",
         };
 
-        var result = new ValidateMcpAuthOptions().Validate(null, options);
+        var result = Validate(options);
 
-        Assert.True(result.Succeeded, $"Validation should succeed; failures: {result.FailureMessage}");
+        Assert.Empty(result);
     }
 
     [Theory]
@@ -71,9 +71,17 @@ public class McpAuthOptionsTests
             Scope = scope,
         };
 
-        var result = new ValidateMcpAuthOptions().Validate(null, options);
+        var result = Validate(options);
 
-        Assert.True(result.Failed, "Validation should fail when auth is enabled but a value is missing.");
-        Assert.Contains(expectedMissingField, result.FailureMessage);
+        Assert.NotEmpty(result);
+        Assert.Contains(result, r => r.MemberNames.Contains(expectedMissingField));
+    }
+
+    private static List<ValidationResult> Validate(McpAuthOptions options)
+    {
+        var context = new ValidationContext(options);
+        var results = new List<ValidationResult>();
+        Validator.TryValidateObject(options, context, results, validateAllProperties: true);
+        return results;
     }
 }

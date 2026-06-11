@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Options;
+using System.ComponentModel.DataAnnotations;
 
 namespace UsecaseCoach.Mcp;
 
@@ -6,7 +6,7 @@ namespace UsecaseCoach.Mcp;
 /// Configuration for MCP Entra authentication.
 /// Bound from Mcp:Auth configuration section.
 /// </summary>
-public class McpAuthOptions
+public class McpAuthOptions : IValidatableObject
 {
     /// <summary>
     /// Whether to enable authentication. Defaults to false (public endpoint).
@@ -43,30 +43,37 @@ public class McpAuthOptions
         var baseUrl = Instance.TrimEnd('/');
         return $"{baseUrl}/{TenantId}/v2.0";
     }
-}
 
-/// <summary>
-/// Validates that the Entra values needed for token validation are present,
-/// but only when authentication is enabled. When disabled, the endpoint is
-/// public and no TenantId/ClientId/Scope are required.
-/// </summary>
-public sealed class ValidateMcpAuthOptions : IValidateOptions<McpAuthOptions>
-{
-    public ValidateOptionsResult Validate(string? name, McpAuthOptions options)
+    /// <summary>
+    /// DataAnnotations validation rule: these values are required only when
+    /// authentication is enabled.
+    /// </summary>
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
-        if (!options.Enabled)
+        if (!Enabled)
         {
-            return ValidateOptionsResult.Success;
+            yield break;
         }
 
-        var missing = new List<string>();
-        if (string.IsNullOrWhiteSpace(options.TenantId)) missing.Add(nameof(McpAuthOptions.TenantId));
-        if (string.IsNullOrWhiteSpace(options.ClientId)) missing.Add(nameof(McpAuthOptions.ClientId));
-        if (string.IsNullOrWhiteSpace(options.Scope)) missing.Add(nameof(McpAuthOptions.Scope));
+        if (string.IsNullOrWhiteSpace(TenantId))
+        {
+            yield return new ValidationResult(
+                "TenantId is required when Mcp:Auth:Enabled is true.",
+                [nameof(TenantId)]);
+        }
 
-        return missing.Count == 0
-            ? ValidateOptionsResult.Success
-            : ValidateOptionsResult.Fail(
-                $"Mcp:Auth:Enabled is true but required values are missing: {string.Join(", ", missing)}.");
+        if (string.IsNullOrWhiteSpace(ClientId))
+        {
+            yield return new ValidationResult(
+                "ClientId is required when Mcp:Auth:Enabled is true.",
+                [nameof(ClientId)]);
+        }
+
+        if (string.IsNullOrWhiteSpace(Scope))
+        {
+            yield return new ValidationResult(
+                "Scope is required when Mcp:Auth:Enabled is true.",
+                [nameof(Scope)]);
+        }
     }
 }
