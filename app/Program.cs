@@ -1,8 +1,12 @@
+using Azure.AI.OpenAI;
+using Azure.Identity;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.Extensions.AI;
 using Microsoft.IdentityModel.Tokens;
 using ModelContextProtocol.AspNetCore.Authentication;
 using UsecaseCoach.Mcp;
+using UsecaseCoach.Mcp.Coaching;
 using UsecaseCoach.Mcp.Tools;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,7 +22,26 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 
 builder.Services.AddMcpServer()
     .WithHttpTransport()
-    .WithTools<ReferenceUsecaseTools>();
+    .WithTools<ReferenceUsecaseTools>()
+    .WithTools<CoachTools>();
+
+// Wire the Socratic coach to a Microsoft Foundry chat model when configured. The
+// endpoint and deployment name come from configuration (env vars Foundry__Endpoint
+// and Foundry__DeploymentName) so no environment-specific values live in source, and
+// the model is reached with the host's managed identity (DefaultAzureCredential) — no
+// keys are handled. When unconfigured, no IChatClient is registered and the coach tool
+// reports that it needs configuration instead of blocking startup.
+var foundryEndpoint = builder.Configuration["Foundry:Endpoint"];
+var foundryDeployment = builder.Configuration["Foundry:DeploymentName"];
+if (!string.IsNullOrWhiteSpace(foundryEndpoint) && !string.IsNullOrWhiteSpace(foundryDeployment))
+{
+    builder.Services.AddSingleton<IChatClient>(_ =>
+        new AzureOpenAIClient(new Uri(foundryEndpoint), new DefaultAzureCredential())
+            .GetChatClient(foundryDeployment)
+            .AsIChatClient());
+}
+
+builder.Services.AddSingleton(sp => new CoachService(sp.GetService<IChatClient>()));
 
 // Bind and validate MCP auth configuration (opt-out: auth enabled by default).
 // ValidateOnStart() ensures config errors fail at startup, not at first use.
