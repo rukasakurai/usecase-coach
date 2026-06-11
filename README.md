@@ -65,6 +65,11 @@ Then enter a prompt, for example:
 
 > Using the usecase-coach server, show me a reference AI use case and explain the pattern.
 
+#### Remove client setup after testing
+
+- **GitHub Copilot CLI**: remove the `usecase-coach` server entry from your MCP config (either via `/mcp` in the CLI UI, or by deleting the `usecase-coach` object from `~/.copilot/mcp-config.json`).
+- **VS Code (agent mode)**: remove the same `usecase-coach` MCP server entry from whichever scope you added it (User or Workspace settings).
+
 **Other clients** accept the same URL — e.g. VS Code agent mode or Claude Desktop. For a quick check without an LLM, use the [MCP Inspector](https://github.com/modelcontextprotocol/inspector): `npx @modelcontextprotocol/inspector`, connect to the URL, and call `get_reference_usecases` directly.
 
 > The default Azure deployment requires authentication: the client must present a valid Microsoft Entra token (see [Authentication](#authentication)). A deployment is only public if it explicitly opts out of auth.
