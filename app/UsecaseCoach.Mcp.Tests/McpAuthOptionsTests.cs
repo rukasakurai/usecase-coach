@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Xunit;
 using UsecaseCoach.Mcp;
 
 namespace UsecaseCoach.Mcp.Tests;
