@@ -13,6 +13,9 @@
     },
     "disableAuth": {
       "value": "${AUTH_DISABLED=false}"
+    },
+    "minReplicas": {
+      "value": "${MCP_MIN_REPLICAS=0}"
     }
   }
 }

@@ -60,6 +60,10 @@ azd up
 
 `azd` builds the image from [`app/Dockerfile`](app/Dockerfile) (build context is the repo root so the use-case data is bundled) and provisions the resources in [`infra/`](infra/). After deployment, connect your MCP client to `https://<app-fqdn>/mcp` (the FQDN is shown in the `azd` output and as the `SERVICE_MCP_URI` output).
 
+#### Scaling
+
+By default the container app **scales to zero** (`minReplicas: 0`) — cheapest, with a brief cold-start delay on the first request after an idle period. To keep a deployment warm, set `MCP_MIN_REPLICAS=1` (`azd env set MCP_MIN_REPLICAS 1`) before `azd up`; `maxReplicas` tracks the same value, so cost stays bounded to a single small replica (0.25 vCPU / 0.5 GiB).
+
 ### Test with a prompt
 
 To exercise the server the way an AI agent would, register it with an MCP client and ask a natural-language question — the model decides which tool to call. The steps are identical for a local or Azure deployment; only the URL differs:

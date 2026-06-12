@@ -13,6 +13,11 @@ param mcpImageName string = ''
 @description('Deploy the endpoint WITHOUT authentication (public). Defaults to false: the endpoint requires Microsoft Entra ID auth and its app registration is provisioned by this deployment. Set to true only where the deploying identity cannot create Entra app registrations (e.g. CI).')
 param disableAuth bool = false
 
+@minValue(0)
+@maxValue(3)
+@description('Minimum number of container replicas. Defaults to 0 (scale-to-zero) for lowest cost, which incurs a cold-start delay after idle periods. Set to 1 to keep one replica warm and avoid cold starts.')
+param minReplicas int = 0
+
 @description('Name of the Foundry chat model the coach uses (OpenAI format).')
 param foundryModelName string = 'gpt-4o-mini'
 
@@ -161,8 +166,8 @@ resource mcp 'Microsoft.App/containerApps@2024-03-01' = {
         }
       ]
       scale: {
-        minReplicas: 0
-        maxReplicas: 1
+        minReplicas: minReplicas
+        maxReplicas: max(minReplicas, 1)
       }
     }
   }
